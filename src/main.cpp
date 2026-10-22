@@ -55,7 +55,26 @@ void drawBoxBody(const b2Body* body, float halfWidth, float halfHeight, float r,
                  halfWidth * 2.0f * kPixelsPerMeter, halfHeight * 2.0f * kPixelsPerMeter,
                  -body->GetAngle(), r, g, b);
 }
-}  // namespace
+
+b2Body* createBox(b2World& world, float x, float y, float halfWidth, float halfHeight,
+                  float friction, float restitution) {
+    b2BodyDef bodyDef;
+    bodyDef.type = b2_dynamicBody;
+    bodyDef.position.Set(x, y);
+    b2Body* body = world.CreateBody(&bodyDef);
+
+    b2PolygonShape shape;
+    shape.SetAsBox(halfWidth, halfHeight);
+
+    b2FixtureDef fixtureDef;
+    fixtureDef.shape = &shape;
+    fixtureDef.density = 1.0f;
+    fixtureDef.friction = friction;
+    fixtureDef.restitution = restitution;
+    body->CreateFixture(&fixtureDef);
+
+    return body;
+}}  // namespace
 
 int main() {
     try {
@@ -78,19 +97,8 @@ int main() {
         groundFixture.friction = 0.6f;
         ground->CreateFixture(&groundFixture);
 
-        b2BodyDef boxDef;
-        boxDef.type = b2_dynamicBody;
-        boxDef.position.Set(pixelsToMetersX(400.0f), pixelsToMetersY(100.0f));
-        b2Body* box = world.CreateBody(&boxDef);
-
-        b2PolygonShape boxShape;
-        boxShape.SetAsBox(kBoxHalfSize, kBoxHalfSize);
-
-        b2FixtureDef boxFixture;
-        boxFixture.shape = &boxShape;
-        boxFixture.density = 1.0f;
-        boxFixture.friction = 0.3f;
-        box->CreateFixture(&boxFixture);
+        b2Body* box = createBox(world, pixelsToMetersX(400.0f), pixelsToMetersY(100.0f),
+                                kBoxHalfSize, kBoxHalfSize, 0.3f, 0.0f);
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
