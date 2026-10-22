@@ -23,6 +23,8 @@ constexpr float kGroundY = 1.0f;
 constexpr float kGroundHalfWidth = 10.0f;
 constexpr float kGroundHalfHeight = 0.5f;
 
+constexpr float kBoxHalfSize = 1.0f;
+
 }  // namespace
 
 int main() {
@@ -46,6 +48,20 @@ int main() {
         groundFixture.friction = 0.6f;
         ground->CreateFixture(&groundFixture);
 
+        b2BodyDef boxDef;
+        boxDef.type = b2_dynamicBody;
+        boxDef.position.Set(12.5f, 14.0f);
+        b2Body* box = world.CreateBody(&boxDef);
+
+        b2PolygonShape boxShape;
+        boxShape.SetAsBox(kBoxHalfSize, kBoxHalfSize);
+
+        b2FixtureDef boxFixture;
+        boxFixture.shape = &boxShape;
+        boxFixture.density = 1.0f;
+        boxFixture.friction = 0.3f;
+        box->CreateFixture(&boxFixture);
+
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
         bool wasMouseDown = false;
@@ -67,6 +83,11 @@ int main() {
             gfx::drawBox(groundPosition.x * 32.0f, kWindowHeight - groundPosition.y * 32.0f,
                          kGroundHalfWidth * 2.0f * 32.0f, kGroundHalfHeight * 2.0f * 32.0f, 0.0f,
                          0.35f, 0.35f, 0.4f);
+
+            b2Vec2 boxPosition = box->GetPosition();
+            gfx::drawBox(boxPosition.x * 32.0f, kWindowHeight - boxPosition.y * 32.0f,
+                         kBoxHalfSize * 2.0f * 32.0f, kBoxHalfSize * 2.0f * 32.0f, 0.0f, 1.0f,
+                         0.5f, 0.2f);
 
             window.swapBuffers();
             window.pollEvents();
