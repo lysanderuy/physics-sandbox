@@ -41,6 +41,7 @@ constexpr float kAxisLength = 0.6f;
 constexpr int kCircleSegments = 24;
 
 constexpr float kShapeSize = 0.5f;
+constexpr float kPolygonRadius = 0.6f;
 
 struct ShapeStyle {
     int sides;
@@ -50,8 +51,11 @@ struct ShapeStyle {
 constexpr ShapeStyle kShapes[] = {
     {4, 1.0f, 0.6f, 0.2f},
     {0, 0.4f, 0.8f, 1.0f},
+    {3, 1.0f, 0.9f, 0.3f},
+    {5, 0.8f, 0.5f, 1.0f},
+    {6, 0.5f, 1.0f, 0.6f},
 };
-constexpr int kShapeCount = 2;
+constexpr int kShapeCount = 5;
 
 struct Item {
     b2Body* body;
@@ -146,8 +150,17 @@ Item createItem(b2World& world, const ShapeStyle& style, float x, float y) {
     if (style.sides == 0) {
         circle.m_radius = kShapeSize;
         fixtureDef.shape = &circle;
-    } else {
+    } else if (style.sides == 4) {
         polygon.SetAsBox(kShapeSize, kShapeSize);
+        fixtureDef.shape = &polygon;
+    } else {
+        // Corners sit on a circle, counter-clockwise, apex up.
+        b2Vec2 points[b2_maxPolygonVertices];
+        for (int i = 0; i < style.sides; ++i) {
+            float angle = kPi / 2.0f + 2.0f * kPi * i / style.sides;
+            points[i].Set(kPolygonRadius * std::cos(angle), kPolygonRadius * std::sin(angle));
+        }
+        polygon.Set(points, style.sides);
         fixtureDef.shape = &polygon;
     }
     body->CreateFixture(&fixtureDef);
