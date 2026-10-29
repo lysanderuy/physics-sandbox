@@ -38,6 +38,13 @@ constexpr int kCircleSegments = 24;
 constexpr float kShapeSize = 0.5f;
 constexpr float kPolygonRadius = 0.6f;
 
+constexpr float kPlatformY = 8.0f;
+constexpr float kPlatformHalfWidth = 2.0f;
+constexpr float kPlatformHalfHeight = 0.25f;
+constexpr float kPlatformMinX = 9.5f;
+constexpr float kPlatformMaxX = 15.5f;
+constexpr float kPlatformSpeed = 2.0f;
+
 struct ShapeStyle {
     int sides;
     float r, g, b;
@@ -71,6 +78,14 @@ float pixelsToMetersX(float xPixels) {
 
 float pixelsToMetersY(float yPixels) {
     return (kWindowHeight - yPixels) / kPixelsPerMeter;
+}
+
+void drawBoxBody(const b2Body* body, float halfWidth, float halfHeight, float r, float g,
+                 float b) {
+    b2Vec2 position = body->GetPosition();
+    gfx::drawBox(metersToPixelsX(position.x), metersToPixelsY(position.y),
+                 halfWidth * 2.0f * kPixelsPerMeter, halfHeight * 2.0f * kPixelsPerMeter,
+                 -body->GetAngle(), r, g, b);
 }
 
 // A line is a thin box laid between two points.
@@ -197,6 +212,20 @@ int main() {
         terrainFixture.friction = 0.6f;
         terrainBody->CreateFixture(&terrainFixture);
 
+        b2BodyDef platformDef;
+        platformDef.type = b2_kinematicBody;
+        platformDef.position.Set((kPlatformMinX + kPlatformMaxX) * 0.5f, kPlatformY);
+        platformDef.linearVelocity.Set(kPlatformSpeed, 0.0f);
+        b2Body* platform = world.CreateBody(&platformDef);
+
+        b2PolygonShape platformShape;
+        platformShape.SetAsBox(kPlatformHalfWidth, kPlatformHalfHeight);
+
+        b2FixtureDef platformFixture;
+        platformFixture.shape = &platformShape;
+        platformFixture.friction = 0.8f;
+        platform->CreateFixture(&platformFixture);
+
         std::vector<Item> items;
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -241,6 +270,13 @@ int main() {
                 spawnTimer = kSpawnCooldown;
             }
 
+            float platformX = platform->GetPosition().x;
+            if (platformX >= kPlatformMaxX) {
+                platform->SetLinearVelocity(b2Vec2(-kPlatformSpeed, 0.0f));
+            } else if (platformX <= kPlatformMinX) {
+                platform->SetLinearVelocity(b2Vec2(kPlatformSpeed, 0.0f));
+            }
+
             accumulator += frameTime;
             while (accumulator >= kStepDt) {
                 world.Step(kStepDt, kVelocityIterations, kPositionIterations);
@@ -261,6 +297,8 @@ int main() {
             for (size_t i = 0; i + 1 < terrain.size(); ++i) {
                 drawLine(terrain[i], terrain[i + 1], 0.85f, 0.85f, 0.88f);
             }
+
+            drawBoxBody(platform, kPlatformHalfWidth, kPlatformHalfHeight, 0.35f, 0.35f, 0.4f);
 
             for (const Item& item : items) {
                 drawItem(item, showAabb);
