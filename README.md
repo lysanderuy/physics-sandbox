@@ -1,9 +1,10 @@
 # Physics Sandbox
 
-A 2D physics demo in C++ and OpenGL, built on Box2D. Four boxes with different
-materials slide, tumble and settle on a static ground, and holding the left
-mouse button spawns more. `src/main.cpp` is built up one checkpoint at a time,
-so each commit in the history adds one concept.
+A 2D physics demo in C++ and OpenGL, built on Box2D. Shapes spawn at the mouse
+and roll over chain terrain, ride a moving platform, and knock a rope and a
+pendulum around. It is one world that touches all three Box2D modules: Common,
+Collision and Dynamics. `src/main.cpp` is built up one checkpoint at a time, so
+each commit in the history adds one concept.
 
 GLFW, GLAD and Box2D are vendored, and window and input handling live in
 `src/core/`. Nothing needs to be installed beyond the compiler.
@@ -28,9 +29,14 @@ GLFW, GLAD and Box2D are vendored, and window and input handling live in
 
 ## Controls
 
-- **Spawn:** hold the left mouse button. A box appears at the cursor, at most
-  one every quarter second.
+- **Spawn:** hold the left mouse button. The selected shape appears at the
+  cursor, at most one every quarter second.
+- **Shape:** `1` box, `2` circle, `3` triangle, `4` pentagon, `5` hexagon.
+- **AABB:** `B` shows or hides the axis-aligned bounding box of each shape.
 - `Esc` closes the window.
+
+The window title shows the selected shape and the world's body, contact and
+joint counts.
 
 ## How it works
 
@@ -44,13 +50,65 @@ burst of steps.
 
 Box2D positions are body centers and `SetAsBox` takes half extents.
 `drawBoxBody` converts both to pixels and negates the angle, because rotation
-counter-clockwise in Box2D is clockwise on a y-down screen.
+counter-clockwise in Box2D is clockwise on a y-down screen. It draws the
+platform, the rope and the anchors.
 
-Each box has its own density, friction and restitution. Bodies that fall below
-`kRemoveBelowY` meters are destroyed.
+Every spawned item has the same material: density 1, friction 0.5 and
+restitution 0.3. Its shape and color come from its entry in `kShapes`. Items
+that fall below `kRemoveBelowY` meters are destroyed.
+
+Box2D is three modules, and every `world.Step` runs all of them together.
+
+### Common
+
+`b2Transform` holds a body's position `p` and rotation `q`. `b2Mul(transform,
+point)` turns a point in the body's local space into world space. `drawAxes`
+uses it to draw each body's x axis in red and y axis in green, and `drawItem`
+uses it to place shape vertices. `drawLine` is a thin box laid between two
+points, built on `gfx::drawBox`.
+
+`b2_maxPolygonVertices` (8) is a setting that caps the corners of a polygon.
+
+The world owns every body, fixture and joint. `CreateFixture` copies the shape,
+so shapes can live on the stack, and `DestroyBody` also frees the body's
+fixtures and joints.
+
+### Collision
+
+Each fixture holds a shape, and `drawItem` checks `GetType()` to decide how to
+draw it. It handles circles and polygons. The terrain is drawn from its own
+points.
+
+- **Circle:** a center and a radius, drawn as 24 line segments.
+- **Polygon:** `SetAsBox` for the box. The other polygons place their corners
+  on a circle with sin and cos and pass them to `Set`. The corners run
+  counter-clockwise, the polygon must be convex, and the limit is eight.
+  `Set` builds the convex hull itself, so corner order does not break it.
+- **Chain:** a string of edges used as the terrain. A chain is one-sided: the
+  solid side is right of the direction of travel, so the points run right to
+  left to make the hilltops solid. The two extra points in `CreateChain` are
+  the neighbors past each end. A shape spawned below the surface is on the
+  open side, so it falls through and is destroyed.
+- **AABB:** `fixture->GetAABB(0)` is the smallest box aligned to the world axes
+  that holds the shape. It grows and shrinks as the shape rotates.
+
+### Dynamics
+
+- **Body types:** the terrain and the anchors are static, the items, rope links
+  and bob are dynamic, and the platform is kinematic. A kinematic body is moved
+  by its velocity and ignores forces. The main loop flips its velocity at
+  `kPlatformMinX` and `kPlatformMaxX`.
+- **Revolute joint:** pins two bodies to one point and lets them rotate. The
+  rope is `kRopeLinks` links, each pinned to the one before it, and the first
+  is pinned to a static anchor. `angularDamping` lets the rope settle.
+- **Distance joint:** keeps two anchor points a fixed length apart. The bob
+  swings on a 5 meter line and has no damping, so it keeps swinging.
+- **World counts:** `GetBodyCount`, `GetContactCount` and `GetJointCount` are
+  shown in the window title.
 
 The values to tune are the constants at the top of `src/main.cpp`:
-`kGravity`, `kPixelsPerMeter`, `kStepDt`, `kSpawnCooldown` and `kSpawnHalfSize`.
+`kGravity`, `kPixelsPerMeter`, `kStepDt`, `kSpawnCooldown`, `kShapeSize`,
+`kPolygonRadius`, `kPlatformSpeed` and `kRopeLinks`.
 
 ## Rebuild the Box2D library
 
@@ -66,7 +124,7 @@ rebuild it after switching compilers or editing `src/box2d/`, run the
 glfw3.dll                 GLFW runtime, must sit next to main.exe
 lib/libglfw3dll.a         GLFW import library
 src/
-  main.cpp                world, bodies, spawning, main loop
+  main.cpp                world, shapes, joints, spawning, main loop
   draw.h/.cpp             gfx::drawBox and shader setup
   glad.c                  vendored GLAD loader
   core/                   GLFW context, window and keyboard input (gfx namespace)
