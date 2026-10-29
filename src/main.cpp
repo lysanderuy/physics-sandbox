@@ -3,6 +3,7 @@
 #include <box2d/box2d.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
@@ -35,6 +36,9 @@ constexpr float kSpawnCooldown = 0.25f;
 constexpr float kSpawnHalfSize = 0.5f;
 constexpr float kRemoveBelowY = -10.0f;
 
+constexpr float kLineThickness = 2.0f;
+constexpr float kAxisLength = 0.6f;
+
 struct Box {
     b2Body* body;
     float halfWidth;
@@ -64,6 +68,24 @@ void drawBoxBody(const b2Body* body, float halfWidth, float halfHeight, float r,
     gfx::drawBox(metersToPixelsX(position.x), metersToPixelsY(position.y),
                  halfWidth * 2.0f * kPixelsPerMeter, halfHeight * 2.0f * kPixelsPerMeter,
                  -body->GetAngle(), r, g, b);
+}
+
+// A line is a thin box laid between two points.
+void drawLine(b2Vec2 start, b2Vec2 end, float r, float g, float b) {
+    float x1 = metersToPixelsX(start.x);
+    float y1 = metersToPixelsY(start.y);
+    float x2 = metersToPixelsX(end.x);
+    float y2 = metersToPixelsY(end.y);
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+    gfx::drawBox((x1 + x2) * 0.5f, (y1 + y2) * 0.5f, std::sqrt(dx * dx + dy * dy) + kLineThickness,
+                 kLineThickness, std::atan2(dy, dx), r, g, b);
+}
+
+void drawAxes(const b2Body* body) {
+    const b2Transform& transform = body->GetTransform();
+    drawLine(transform.p, b2Mul(transform, b2Vec2(kAxisLength, 0.0f)), 1.0f, 0.3f, 0.3f);
+    drawLine(transform.p, b2Mul(transform, b2Vec2(0.0f, kAxisLength)), 0.3f, 1.0f, 0.3f);
 }
 
 Box createBox(b2World& world, float x, float y, float halfWidth, float halfHeight, float friction,
@@ -158,6 +180,7 @@ int main() {
             drawBoxBody(ground, kGroundHalfWidth, kGroundHalfHeight, 0.35f, 0.35f, 0.4f);
             for (const Box& box : boxes) {
                 drawBoxBody(box.body, box.halfWidth, box.halfHeight, box.r, box.g, box.b);
+                drawAxes(box.body);
             }
 
             window.swapBuffers();
