@@ -21,6 +21,7 @@ constexpr int kWindowHeight = 600;
 
 constexpr float kPixelsPerMeter = 32.0f;
 constexpr float kGravity = 9.81f;
+constexpr float kPi = 3.14159265f;
 
 constexpr float kGroundX = 12.5f;
 constexpr float kGroundY = 1.0f;
@@ -33,11 +34,24 @@ constexpr int kVelocityIterations = 8;
 constexpr int kPositionIterations = 3;
 
 constexpr float kSpawnCooldown = 0.25f;
-constexpr float kSpawnHalfSize = 0.5f;
 constexpr float kRemoveBelowY = -10.0f;
 
 constexpr float kLineThickness = 2.0f;
 constexpr float kAxisLength = 0.6f;
+constexpr int kCircleSegments = 24;
+
+constexpr float kShapeSize = 0.5f;
+
+struct ShapeStyle {
+    int sides;
+    float r, g, b;
+};
+
+constexpr ShapeStyle kShapes[] = {
+    {4, 1.0f, 0.6f, 0.2f},
+    {0, 0.4f, 0.8f, 1.0f},
+};
+constexpr int kShapeCount = 2;
 
 struct Item {
     b2Body* body;
@@ -80,6 +94,16 @@ void drawLine(b2Vec2 start, b2Vec2 end, float r, float g, float b) {
                  kLineThickness, std::atan2(dy, dx), r, g, b);
 }
 
+void drawCircle(b2Vec2 center, float radius, float r, float g, float b) {
+    for (int i = 0; i < kCircleSegments; ++i) {
+        float a1 = 2.0f * kPi * i / kCircleSegments;
+        float a2 = 2.0f * kPi * (i + 1) / kCircleSegments;
+        drawLine(b2Vec2(center.x + radius * std::cos(a1), center.y + radius * std::sin(a1)),
+                 b2Vec2(center.x + radius * std::cos(a2), center.y + radius * std::sin(a2)), r, g,
+                 b);
+    }
+}
+
 void drawAxes(const b2Body* body) {
     const b2Transform& transform = body->GetTransform();
     drawLine(transform.p, b2Mul(transform, b2Vec2(kAxisLength, 0.0f)), 1.0f, 0.3f, 0.3f);
@@ -91,7 +115,10 @@ void drawItem(const Item& item) {
     for (const b2Fixture* fixture = item.body->GetFixtureList(); fixture;
          fixture = fixture->GetNext()) {
         const b2Shape* shape = fixture->GetShape();
-        if (shape->GetType() == b2Shape::e_polygon) {
+        if (shape->GetType() == b2Shape::e_circle) {
+            const b2CircleShape* circle = static_cast<const b2CircleShape*>(shape);
+            drawCircle(b2Mul(transform, circle->m_p), circle->m_radius, item.r, item.g, item.b);
+        } else if (shape->GetType() == b2Shape::e_polygon) {
             const b2PolygonShape* polygon = static_cast<const b2PolygonShape*>(shape);
             for (int i = 0; i < polygon->m_count; ++i) {
                 int next = (i + 1) % polygon->m_count;
@@ -103,24 +130,29 @@ void drawItem(const Item& item) {
     drawAxes(item.body);
 }
 
-Item createBox(b2World& world, float x, float y, float halfWidth, float halfHeight, float friction,
-               float restitution, float r, float g, float b) {
+Item createItem(b2World& world, const ShapeStyle& style, float x, float y) {
     b2BodyDef bodyDef;
     bodyDef.type = b2_dynamicBody;
     bodyDef.position.Set(x, y);
     b2Body* body = world.CreateBody(&bodyDef);
 
-    b2PolygonShape shape;
-    shape.SetAsBox(halfWidth, halfHeight);
-
+    b2CircleShape circle;
+    b2PolygonShape polygon;
     b2FixtureDef fixtureDef;
-    fixtureDef.shape = &shape;
     fixtureDef.density = 1.0f;
-    fixtureDef.friction = friction;
-    fixtureDef.restitution = restitution;
+    fixtureDef.friction = 0.5f;
+    fixtureDef.restitution = 0.3f;
+
+    if (style.sides == 0) {
+        circle.m_radius = kShapeSize;
+        fixtureDef.shape = &circle;
+    } else {
+        polygon.SetAsBox(kShapeSize, kShapeSize);
+        fixtureDef.shape = &polygon;
+    }
     body->CreateFixture(&fixtureDef);
 
-    return {body, r, g, b};
+    return {body, style.r, style.g, style.b};
 }
 
 }  // namespace
@@ -150,6 +182,8 @@ int main() {
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
+        int selectedShape = 0;
+
         float spawnTimer = 0.0f;
 
         double previousTime = glfwGetTime();
@@ -162,16 +196,21 @@ int main() {
             float frameTime = std::min(static_cast<float>(now - previousTime), kMaxFrameTime);
             previousTime = now;
 
+            for (int i = 0; i < kShapeCount; ++i) {
+                if (window.isKeyPressed(GLFW_KEY_1 + i)) {
+                    selectedShape = i;
+                }
+            }
+
             double mouseX = 0.0, mouseY = 0.0;
             window.getCursorPosition(mouseX, mouseY);
             bool mouseDown = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
 
             spawnTimer -= frameTime;
             if (mouseDown && spawnTimer <= 0.0f) {
-                items.push_back(createBox(world, pixelsToMetersX(static_cast<float>(mouseX)),
-                                          pixelsToMetersY(static_cast<float>(mouseY)),
-                                          kSpawnHalfSize, kSpawnHalfSize, 0.5f, 0.3f, 1.0f, 0.5f,
-                                          0.2f));
+                items.push_back(createItem(world, kShapes[selectedShape],
+                                           pixelsToMetersX(static_cast<float>(mouseX)),
+                                           pixelsToMetersY(static_cast<float>(mouseY))));
                 spawnTimer = kSpawnCooldown;
             }
 
