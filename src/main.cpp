@@ -95,13 +95,22 @@ void drawCircle(b2Vec2 center, float radius, float r, float g, float b) {
     }
 }
 
+void drawAabb(const b2AABB& aabb) {
+    b2Vec2 lower = aabb.lowerBound;
+    b2Vec2 upper = aabb.upperBound;
+    drawLine(b2Vec2(lower.x, lower.y), b2Vec2(upper.x, lower.y), 1.0f, 1.0f, 0.2f);
+    drawLine(b2Vec2(upper.x, lower.y), b2Vec2(upper.x, upper.y), 1.0f, 1.0f, 0.2f);
+    drawLine(b2Vec2(upper.x, upper.y), b2Vec2(lower.x, upper.y), 1.0f, 1.0f, 0.2f);
+    drawLine(b2Vec2(lower.x, upper.y), b2Vec2(lower.x, lower.y), 1.0f, 1.0f, 0.2f);
+}
+
 void drawAxes(const b2Body* body) {
     const b2Transform& transform = body->GetTransform();
     drawLine(transform.p, b2Mul(transform, b2Vec2(kAxisLength, 0.0f)), 1.0f, 0.3f, 0.3f);
     drawLine(transform.p, b2Mul(transform, b2Vec2(0.0f, kAxisLength)), 0.3f, 1.0f, 0.3f);
 }
 
-void drawItem(const Item& item) {
+void drawItem(const Item& item, bool showAabb) {
     const b2Transform& transform = item.body->GetTransform();
     for (const b2Fixture* fixture = item.body->GetFixtureList(); fixture;
          fixture = fixture->GetNext()) {
@@ -116,6 +125,9 @@ void drawItem(const Item& item) {
                 drawLine(b2Mul(transform, polygon->m_vertices[i]),
                          b2Mul(transform, polygon->m_vertices[next]), item.r, item.g, item.b);
             }
+        }
+        if (showAabb) {
+            drawAabb(fixture->GetAABB(0));
         }
     }
     drawAxes(item.body);
@@ -190,6 +202,8 @@ int main() {
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
         int selectedShape = 0;
+        bool showAabb = false;
+        bool bWasDown = false;
 
         float spawnTimer = 0.0f;
 
@@ -208,6 +222,12 @@ int main() {
                     selectedShape = i;
                 }
             }
+
+            bool bDown = window.isKeyPressed(GLFW_KEY_B);
+            if (bDown && !bWasDown) {
+                showAabb = !showAabb;
+            }
+            bWasDown = bDown;
 
             double mouseX = 0.0, mouseY = 0.0;
             window.getCursorPosition(mouseX, mouseY);
@@ -243,7 +263,7 @@ int main() {
             }
 
             for (const Item& item : items) {
-                drawItem(item);
+                drawItem(item, showAabb);
             }
 
             window.swapBuffers();
